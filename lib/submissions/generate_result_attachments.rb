@@ -735,7 +735,8 @@ module Submissions
       params = {
         certificate: pkcs.certificate,
         key: pkcs.key,
-        certificate_chain: pkcs.ca_certs || []
+        certificate_chain: pkcs.ca_certs || [],
+        signature_type: Docuseal.signature_type  # Use PAdES when ENV['SIGNATURE_TYPE']='pades'
       }
 
       if tsa_url

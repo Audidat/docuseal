@@ -21,7 +21,7 @@
       </label>
       <div class="space-x-2 flex flex-none">
         <span
-          v-if="isTextSignature && format !== 'typed_or_upload' && format !== 'typed' && format !== 'upload'"
+          v-if="isTextSignature && format !== 'typed_or_upload' && format !== 'typed' && format !== 'upload' && false"
           class="tooltip"
           :data-tip="t('draw_signature')"
         >
@@ -38,7 +38,7 @@
           </a>
         </span>
         <span
-          v-else-if="withTypedSignature && format !== 'drawn_or_upload' && format !== 'typed_or_upload' && format !== 'typed' && format !== 'drawn' && format !== 'upload'"
+          v-else-if="withTypedSignature && format !== 'drawn_or_upload' && format !== 'typed_or_upload' && format !== 'typed' && format !== 'drawn' && format !== 'upload' && false"
           class="tooltip ml-2"
           :class="{ 'hidden sm:inline': modelValue || computedPreviousValue }"
           :data-tip="t('type_text')"
@@ -56,7 +56,7 @@
           </a>
         </span>
         <span
-          v-if="format !== 'typed' && format !== 'drawn' && format !== 'upload' && format !== 'drawn_or_typed'"
+          v-if="format !== 'typed' && format !== 'drawn' && format !== 'upload' && format !== 'drawn_or_typed' && false"
           class="tooltip"
           :class="{ 'hidden sm:inline': modelValue || computedPreviousValue }"
           :data-tip="t('take_photo')"
@@ -99,6 +99,7 @@
               :width="19"
               :height="19"
             />
+            <span class="ml-1">{{ isShowQr ? 'Firmar aquí' : 'Firmar con el móvil' }}</span>
           </a>
         </span>
         <a
@@ -133,7 +134,7 @@
       class="mx-auto bg-white border border-base-300 rounded max-h-44"
     >
     <FileDropzone
-      v-if="format === 'upload' && !modelValue && !computedPreviousValue"
+      v-if="format === 'upload' && !modelValue && !computedPreviousValue && false"
       :message="`${t('upload')} ${field.name || t('signature')}`"
       :submitter-slug="submitterSlug"
       :dry-run="dryRun"
@@ -158,13 +159,13 @@
         </a>
       </div>
       <div
-        v-if="isTextSignature"
+        v-if="isTextSignature && false"
         class="absolute top-0 right-0 left-0 bottom-0"
       />
       <canvas
         v-show="!modelValue && !computedPreviousValue"
         ref="canvas"
-        style="padding: 1px; 0"
+        style="padding: 1px 0"
         class="bg-white border border-base-300 rounded-2xl w-full draw-canvas"
       />
       <div
@@ -201,7 +202,7 @@
       </div>
     </div>
     <input
-      v-if="isTextSignature && !modelValue && !computedPreviousValue"
+      v-if="isTextSignature && !modelValue && !computedPreviousValue && false"
       id="signature_text_input"
       ref="textInput"
       class="base-input !text-2xl w-full mt-6"

@@ -1,0 +1,95 @@
+# Development Dockerfile for DocuSeal
+# This Dockerfile is optimized for development with volume mounts
+# Use docker-compose.dev.yml for easy setup with live code reloading
+
+FROM ruby:3.4.2-alpine AS download
+
+WORKDIR /fonts
+
+# Download fonts and pdfium (same as production)
+RUN apk --no-cache add fontforge wget && \
+    wget https://github.com/satbyy/go-noto-universal/releases/download/v7.0/GoNotoKurrent-Regular.ttf && \
+    wget https://github.com/satbyy/go-noto-universal/releases/download/v7.0/GoNotoKurrent-Bold.ttf && \
+    wget https://github.com/impallari/DancingScript/raw/master/fonts/DancingScript-Regular.otf && \
+    wget https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io/fonts/NotoSansSymbols2/hinted/ttf/NotoSansSymbols2-Regular.ttf && \
+    wget https://github.com/Maxattax97/gnu-freefont/raw/master/ttf/FreeSans.ttf && \
+    wget https://github.com/impallari/DancingScript/raw/master/OFL.txt && \
+    wget -O pdfium-linux.tgz "https://github.com/docusealco/pdfium-binaries/releases/latest/download/pdfium-linux-$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/').tgz" && \
+    mkdir -p /pdfium-linux && \
+    tar -xzf pdfium-linux.tgz -C /pdfium-linux
+
+RUN fontforge -lang=py -c 'font1 = fontforge.open("FreeSans.ttf"); font2 = fontforge.open("NotoSansSymbols2-Regular.ttf"); font1.mergeFonts(font2); font1.generate("FreeSans.ttf")'
+
+FROM ruby:3.4.2-alpine
+
+ENV RAILS_ENV=development
+ENV NODE_ENV=development
+ENV BUNDLE_WITHOUT=""
+ENV LD_PRELOAD=/lib/libgcompat.so.0
+ENV OPENSSL_CONF=/app/openssl_legacy.cnf
+
+WORKDIR /app
+
+# Install all runtime and development dependencies
+RUN echo '@edge https://dl-cdn.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories && \
+    apk add --no-cache \
+    # Build tools (needed for gem compilation and development)
+    build-base \
+    # Database clients
+    sqlite-dev libpq-dev mariadb-dev \
+    # Image processing
+    vips-dev@edge libheif@edge vips-heif@edge \
+    # Other runtime dependencies
+    yaml-dev redis gcompat ttf-freefont \
+    # Node.js and Yarn for webpack
+    nodejs yarn \
+    # Git for bundler and development
+    git \
+    # Additional dev tools
+    bash vim curl && \
+    mkdir /fonts && \
+    rm /usr/share/fonts/freefont/FreeSans.otf
+
+# Set up OpenSSL legacy support
+RUN echo $'.include = /etc/ssl/openssl.cnf\n\
+\n\
+[provider_sect]\n\
+default = default_sect\n\
+legacy = legacy_sect\n\
+\n\
+[default_sect]\n\
+activate = 1\n\
+\n\
+[legacy_sect]\n\
+activate = 1' >> /app/openssl_legacy.cnf
+
+# Copy fonts and pdfium from download stage
+COPY --from=download /fonts/GoNotoKurrent-Regular.ttf /fonts/GoNotoKurrent-Bold.ttf /fonts/DancingScript-Regular.otf /fonts/OFL.txt /fonts
+COPY --from=download /fonts/FreeSans.ttf /usr/share/fonts/freefont
+COPY --from=download /pdfium-linux/lib/libpdfium.so /usr/lib/libpdfium.so
+COPY --from=download /pdfium-linux/licenses/pdfium.txt /usr/lib/libpdfium-LICENSE.txt
+
+# Create necessary directories for mounted volumes BEFORE creating symlinks
+RUN mkdir -p app bin config db lib log public tmp
+
+# Now create the symlink (public directory now exists)
+RUN ln -s /fonts /app/public/fonts
+
+# Install shakapacker gem early for webpack support
+RUN gem install shakapacker
+
+# Copy only dependency files first (for layer caching)
+# Source code will be mounted as volumes
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+
+COPY package.json yarn.lock ./
+RUN yarn install --network-timeout 1000000
+
+WORKDIR /data/docuseal
+ENV WORKDIR=/data/docuseal
+
+EXPOSE 3000
+
+# Default command - can be overridden in docker-compose
+CMD ["/app/bin/bundle", "exec", "foreman", "start", "-f", "/app/Procfile.dev"]

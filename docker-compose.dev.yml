@@ -1,0 +1,107 @@
+# Docker Compose for DocuSeal Development
+# This setup mounts source code as volumes for live code reloading
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up
+#   docker compose -f docker-compose.dev.yml up --build  # Rebuild after Gemfile/package.json changes
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"     # Rails server
+      - "3035:3035"     # Webpack dev server (if using Procfile.dev)
+    volumes:
+      # Mount source code for live reloading
+      - ./app:/app/app
+      - ./bin:/app/bin
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./lib:/app/lib
+      - ./log:/app/log
+      - ./public:/app/public
+      - ./spec:/app/spec
+      - ./tmp:/app/tmp
+      - ./Rakefile:/app/Rakefile
+      - ./config.ru:/app/config.ru
+      - ./Procfile.dev:/app/Procfile.dev
+
+      # Mount Gemfile for dependency changes
+      - ./Gemfile:/app/Gemfile
+      - ./Gemfile.lock:/app/Gemfile.lock
+
+      # Mount package.json for JS dependency changes
+      - ./package.json:/app/package.json
+      - ./yarn.lock:/app/yarn.lock
+
+      # Mount webpack configs
+      - ./postcss.config.js:/app/postcss.config.js
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./tailwind.form.config.js:/app/tailwind.form.config.js
+      - ./tailwind.application.config.js:/app/tailwind.application.config.js
+
+      # Use named volumes for better performance (lighter approach)
+      - bundle:/usr/local/bundle
+
+      # Data persistence (for uploaded files, database, etc.)
+      - ./data:/data
+    environment:
+      - RAILS_ENV=development
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/docuseal_dev
+      - REDIS_URL=redis://redis:6379/0
+      # Add your custom environment variables here
+      # - SIGNATURE_TYPE=pades
+    stdin_open: true
+    tty: true
+    working_dir: /app
+    command: >
+      sh -c "
+        echo 'Cleaning up old PID files...' &&
+        rm -f tmp/pids/server.pid &&
+        echo 'Checking dependencies...' &&
+        bundle check || bundle install &&
+        echo 'Installing node modules (this may take a while on first run)...' &&
+        yarn install --prefer-offline &&
+        echo 'Setting up database...' &&
+        bundle exec rails db:create db:migrate &&
+        echo 'Starting application...' &&
+        bundle exec foreman start -f Procfile.dev
+      "
+
+  postgres:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: docuseal_dev
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+
+volumes:
+  bundle:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

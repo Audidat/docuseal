@@ -6,7 +6,7 @@ module Docuseal
   PRODUCT_EMAIL_URL = ENV.fetch('PRODUCT_EMAIL_URL', PRODUCT_URL)
   NEWSLETTER_URL = "#{PRODUCT_URL}/newsletters".freeze
   ENQUIRIES_URL = "#{PRODUCT_URL}/enquiries".freeze
-  PRODUCT_NAME = 'DocuSeal'
+  PRODUCT_NAME = 'AudidatSeal'
   DEFAULT_APP_URL = ENV.fetch('APP_URL', 'http://localhost:3000')
   GITHUB_URL = 'https://github.com/docusealco/docuseal'
   DISCORD_URL = 'https://discord.gg/qygYCDGck9'
@@ -90,6 +90,13 @@ module Docuseal
 
   def pdf_format
     @pdf_format ||= ENV['PDF_FORMAT'].to_s.downcase
+  end
+
+  # Returns the signature type to use for PDF signing
+  # Set ENV['SIGNATURE_TYPE']='pades' to use PAdES (PDF Advanced Electronic Signatures)
+  # Defaults to :cms (Cryptographic Message Syntax) for backward compatibility
+  def signature_type
+    @signature_type ||= ENV['SIGNATURE_TYPE'].to_s.downcase == 'pades' ? :pades : :cms
   end
 
   def trusted_certs
