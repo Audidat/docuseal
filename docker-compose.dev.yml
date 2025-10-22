@@ -56,7 +56,9 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/docuseal_dev
       - REDIS_URL=redis://redis:6379/0
       # Add your custom environment variables here
-      # - SIGNATURE_TYPE=pades
+      - SIGNATURE_TYPE=pades
+      # DSS Service for LTA signature extension
+      - DSS_SERVICE_URL=http://dss-service:4000
     stdin_open: true
     tty: true
     working_dir: /app
@@ -97,6 +99,34 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
+
+  dss-service:
+    build:
+      context: ../dss_service
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4000:4000"
+    volumes:
+      # Mount source code for live reloading
+      - ../dss_service/src:/app/src
+      - ../dss_service/deps.edn:/app/deps.edn
+      # Mount certificate
+      - ../dss_service/cotelmur.p12:/app/cotelmur.p12:ro
+    environment:
+      # Configure your P12 certificate path and password
+      - P12_PATH=cotelmur.p12
+      - P12_PASSWORD=02484012
+      - TSA_URL=http://timestamp.digicert.com
+      # Disable rlwrap in Docker (it doesn't work without a proper TTY)
+      - CLJ_NO_RLWRAP=true
+      - TERM=dumb
+    working_dir: /app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   bundle:

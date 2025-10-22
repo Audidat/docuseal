@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'dss_ltv_extension'
+
 module Submissions
   module GenerateResultAttachments
     FONT_SIZE = 11
@@ -728,6 +730,14 @@ module Submissions
     # rubocop:enable Metrics
 
     def maybe_enable_ltv(io, _sign_params)
+      # Extend PDF to PAdES-BASELINE-LTA using DSS service if configured
+      extended_io = DssLtvExtension.extend_to_lta(io)
+
+      if extended_io
+        # Replace io contents with extended PDF (in place modification)
+        io.reopen(extended_io)
+      end
+
       io
     end
 
