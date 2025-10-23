@@ -51,7 +51,7 @@ module Submissions
 
           document.sign(io, **sign_params)
 
-          Submissions::GenerateResultAttachments.maybe_enable_ltv(io, sign_params)
+          Submissions::GenerateResultAttachments.maybe_enable_ltv(io, sign_params, last_submitter)
         else
           document.write(io)
         end

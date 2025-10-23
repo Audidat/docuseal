@@ -30,7 +30,7 @@ module Submissions
 
         sign_pdf(io, pdf, sign_params)
 
-        Submissions::GenerateResultAttachments.maybe_enable_ltv(io, sign_params)
+        Submissions::GenerateResultAttachments.maybe_enable_ltv(io, sign_params, submitter)
       else
         pdf.write(io, incremental: true, validate: true)
       end

@@ -707,7 +707,7 @@ module Submissions
           pdf.sign(io, write_options: { validate: false, incremental: false }, **sign_params)
         end
 
-        maybe_enable_ltv(io, sign_params)
+        maybe_enable_ltv(io, sign_params, submitter)
       else
         begin
           pdf.write(io, incremental: true, validate: false)
@@ -729,9 +729,10 @@ module Submissions
     end
     # rubocop:enable Metrics
 
-    def maybe_enable_ltv(io, _sign_params)
+    def maybe_enable_ltv(io, _sign_params, submitter = nil)
       # Extend PDF to PAdES-BASELINE-LTA using DSS service if configured
-      extended_io = DssLtvExtension.extend_to_lta(io)
+      account = submitter&.account
+      extended_io = DssLtvExtension.extend_to_lta(io, account)
 
       if extended_io
         # Replace io contents with extended PDF (in place modification)
