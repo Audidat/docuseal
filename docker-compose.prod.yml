@@ -1,0 +1,200 @@
+# Docker Compose for DocuSeal Production
+# Complete production setup with all services
+
+services:
+  # DocuSeal Web Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      dss-service:
+        condition: service_healthy
+    environment:
+      # Rails Environment
+      - RAILS_ENV=production
+      - NODE_ENV=production
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE}
+
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/docuseal_production}
+
+      # Redis (for Sidekiq and cache)
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+
+      # DSS Service for PAdES signatures
+      - DSS_SERVICE_URL=${DSS_SERVICE_URL:-http://dss-service:4000}
+      - SIGNATURE_TYPE=${SIGNATURE_TYPE:-pades}
+
+      # Optional: SMTP (can also be configured via UI)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+    volumes:
+      # Persistent data storage
+      - app_storage:/data/docuseal
+      - app_logs:/app/log
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - docuseal_network
+
+  # Sidekiq Worker for Background Jobs (emails, PDF processing)
+  sidekiq:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      # Rails Environment
+      - RAILS_ENV=production
+      - NODE_ENV=production
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE}
+
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/docuseal_production}
+
+      # Redis
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+
+      # DSS Service
+      - DSS_SERVICE_URL=${DSS_SERVICE_URL:-http://dss-service:4000}
+      - SIGNATURE_TYPE=${SIGNATURE_TYPE:-pades}
+
+      # SMTP (same as app)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+    volumes:
+      # Share storage with app
+      - app_storage:/data/docuseal
+      - sidekiq_logs:/app/log
+    restart: always
+    networks:
+      - docuseal_network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-docuseal_production}
+      # Performance tuning
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docuseal_network
+    # Optional: expose port for external connections (for backups, etc.)
+    # ports:
+    #   - "5432:5432"
+
+  # Redis for Sidekiq queues and Rails cache
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docuseal_network
+
+  # DSS Service for PAdES-BASELINE-LTA digital signatures
+  dss-service:
+    build:
+      context: ../dss_service
+      dockerfile: Dockerfile.prod
+    environment:
+      # Certificate configuration
+      - P12_PATH=${P12_PATH:-cotelmur.p12}
+      - P12_PASSWORD=${P12_PASSWORD:-02484012}
+      - TSA_URL=${TSA_URL:-http://timestamp.digicert.com}
+    volumes:
+      # Mount certificate file (read-only)
+      - ../dss_service/${P12_PATH:-cotelmur.p12}:/app/${P12_PATH:-cotelmur.p12}:ro
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - docuseal_network
+
+  # Caddy Reverse Proxy with automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - app
+    ports:
+      - "80:80"      # HTTP (redirects to HTTPS)
+      - "443:443"    # HTTPS
+      - "443:443/udp" # HTTP/3 (QUIC)
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      # Caddy configuration
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # SSL certificates (persisted by Caddy)
+      - caddy_data:/data
+      - caddy_config:/config
+      # Logs
+      - caddy_logs:/data/logs
+    restart: always
+    networks:
+      - docuseal_network
+
+# Persistent volumes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_storage:
+    driver: local
+  app_logs:
+    driver: local
+  sidekiq_logs:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  caddy_logs:
+    driver: local
+
+# Private network for services
+networks:
+  docuseal_network:
+    driver: bridge

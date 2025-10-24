@@ -1,5 +1,22 @@
 # frozen_string_literal: true
 
+# == Schema Information
+#
+# Table name: accounts
+#
+#  id          :bigint           not null, primary key
+#  archived_at :datetime
+#  locale      :string           not null
+#  name        :string           not null
+#  timezone    :string           not null
+#  uuid        :string           not null
+#  created_at  :datetime         not null
+#  updated_at  :datetime         not null
+#
+# Indexes
+#
+#  index_accounts_on_uuid  (uuid) UNIQUE
+#
 FactoryBot.define do
   factory :account do
     name { Faker::Company.name }

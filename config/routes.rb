@@ -41,10 +41,20 @@ Rails.application.routes.draw do
         resources :emails, only: %i[create], controller: 'submissions', as: :submissions_emails
       end
     end
+    # UNLOCKED: Create submissions from documents (Pro feature)
+    post 'submissions/pdf', to: 'submissions_from_documents#create_from_pdf'
+    post 'submissions/docx', to: 'submissions_from_documents#create_from_docx'
+    post 'submissions/html', to: 'submissions_from_documents#create_from_html'
+
     resources :templates, only: %i[update show index destroy] do
       resources :clone, only: %i[create], controller: 'templates_clone'
       resources :submissions, only: %i[index create]
     end
+    # UNLOCKED: Create templates from documents (Pro feature)
+    post 'templates/pdf', to: 'templates_from_documents#create_from_pdf'
+    post 'templates/docx', to: 'templates_from_documents#create_from_docx'
+    post 'templates/html', to: 'templates_from_documents#create_from_html'
+
     resources :tools, only: %i[] do
       post :merge, on: :collection
       post :verify, on: :collection

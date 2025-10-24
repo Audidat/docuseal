@@ -4,20 +4,8 @@ class ErrorsController < ActionController::Base
   ENTERPRISE_FEATURE_MESSAGE =
     'This feature is available in Pro Edition: https://www.docuseal.com/pricing'
 
-  ENTERPRISE_PATHS = [
-    '/submissions/html',
-    '/api/submissions/html',
-    '/templates/html',
-    '/api/templates/html',
-    '/submissions/pdf',
-    '/api/submissions/pdf',
-    '/templates/pdf',
-    '/api/templates/pdf',
-    '/templates/doc',
-    '/api/templates/doc',
-    '/templates/docx',
-    '/api/templates/docx'
-  ].freeze
+  # UNLOCKED: All features enabled for self-hosted installation
+  ENTERPRISE_PATHS = [].freeze
 
   SAFE_ERROR_MESSAGE_CLASSES = [
     ActionDispatch::Http::Parameters::ParseError,
