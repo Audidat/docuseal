@@ -31,17 +31,14 @@ ENV OPENSSL_CONF=/app/openssl_legacy.cnf
 WORKDIR /app
 
 # Install all runtime and development dependencies
-# Use edge repositories for vips and libheif to get compatible versions
-RUN echo '@edge_main https://dl-cdn.alpinelinux.org/alpine/edge/main' >> /etc/apk/repositories && \
-    echo '@edge_comm https://dl-cdn.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories && \
-    apk add --no-cache \
+# Use stable Alpine packages to avoid dependency conflicts
+RUN apk add --no-cache \
     # Build tools (needed for gem compilation and development)
     build-base \
     # Database clients
     sqlite-dev libpq-dev mariadb-dev \
-    # Image processing (from edge for compatibility)
-    libdeflate@edge_main \
-    vips-dev@edge_comm libheif@edge_comm vips-heif@edge_comm \
+    # Image processing (use stable versions from Alpine 3.21)
+    vips-dev libheif \
     # Other runtime dependencies
     yaml-dev redis gcompat ttf-freefont \
     # Node.js and Yarn for webpack
