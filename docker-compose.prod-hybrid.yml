@@ -8,8 +8,6 @@
 #   2. docker compose -f docker-compose.prod-hybrid.yml --env-file .env.prod up -d --build
 #   3. docker compose -f docker-compose.prod-hybrid.yml logs -f
 
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -59,40 +57,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # DSS Service - Digital Signature Service (Java)
-  # Note: P12 certificate is optional - only needed for legacy file-based signatures
-  # For database-driven signatures (recommended), users upload certificates via DocuSeal UI
-  dss-service:
-    build:
-      context: ../dss_service_java
-      dockerfile: Dockerfile
-    container_name: electronic-signature-dss
-    restart: unless-stopped
-    volumes:
-      # Optional: Mount P12 certificate for legacy /api/extend endpoint
-      # For database-driven approach, this can be omitted
-      - ${P12_CERT_PATH:-/dev/null}:/app/certificate.p12:ro
-    environment:
-      - P12_PATH=${P12_CERT_PATH:+certificate.p12}
-      - P12_PASSWORD=${P12_PASSWORD:-}
-      - TSA_URL=${TSA_URL:-http://timestamp.digicert.com}
-      - PORT=4000
-      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    networks:
-      - backend
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   # DocuSeal Application (using dev Dockerfile for compatibility)
+  # Note: DocuSeal has built-in digital signature support
+  # Users can upload certificates via the UI (stored encrypted in database)
   docuseal:
     build:
       context: .
@@ -103,8 +70,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      dss-service:
         condition: service_healthy
     volumes:
       # Persistent storage for uploaded documents
@@ -128,9 +93,8 @@ services:
       - SECRET_KEY_BASE=${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
 
-      # Signature configuration
+      # Signature configuration (built-in DocuSeal signing)
       - SIGNATURE_TYPE=pades
-      - DSS_SERVICE_URL=http://dss-service:4000
 
       # Email configuration (optional)
       - SMTP_ADDRESS=${SMTP_ADDRESS:-}
