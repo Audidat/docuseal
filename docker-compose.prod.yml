@@ -11,12 +11,10 @@
 #   1. Copy .env.prod.example to .env.prod and configure
 #   2. docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 #   3. docker compose -f docker-compose.prod.yml logs -f
+#
+# IMPORTANT: You MUST use --env-file .env.prod flag or the deployment script
 
 version: '3.8'
-
-# Load environment from .env.prod
-env_file:
-  - .env.prod
 
 services:
   # PostgreSQL Database
