@@ -60,6 +60,8 @@ services:
         max-file: "3"
 
   # DSS Service - Digital Signature Service (Java)
+  # Note: P12 certificate is optional - only needed for legacy file-based signatures
+  # For database-driven signatures (recommended), users upload certificates via DocuSeal UI
   dss-service:
     build:
       context: ../dss_service_java
@@ -67,10 +69,12 @@ services:
     container_name: electronic-signature-dss
     restart: unless-stopped
     volumes:
-      - ${P12_CERT_PATH:?P12_CERT_PATH is required}:/app/certificate.p12:ro
+      # Optional: Mount P12 certificate for legacy /api/extend endpoint
+      # For database-driven approach, this can be omitted
+      - ${P12_CERT_PATH:-/dev/null}:/app/certificate.p12:ro
     environment:
-      - P12_PATH=certificate.p12
-      - P12_PASSWORD=${P12_PASSWORD:?P12_PASSWORD is required}
+      - P12_PATH=${P12_CERT_PATH:+certificate.p12}
+      - P12_PASSWORD=${P12_PASSWORD:-}
       - TSA_URL=${TSA_URL:-http://timestamp.digicert.com}
       - PORT=4000
       - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200

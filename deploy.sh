@@ -88,12 +88,15 @@ REQUIRED_VARS=(
     "ENCRYPTION_KEY"
     "POSTGRES_PASSWORD"
     "REDIS_PASSWORD"
-    "P12_CERT_PATH"
-    "P12_PASSWORD"
+    # Note: P12_CERT_PATH and P12_PASSWORD are optional
+    # Only needed for legacy file-based certificate approach
+    # For database-driven certificates (recommended), users upload via DocuSeal UI
 )
 
 MISSING_VARS=()
 for var in "${REQUIRED_VARS[@]}"; do
+    # Skip comments
+    [[ "$var" =~ ^# ]] && continue
     if [ -z "${!var}" ]; then
         MISSING_VARS+=("$var")
     fi
@@ -107,11 +110,17 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     exit 1
 fi
 
-# Check if P12 certificate exists
-if [ ! -f "$P12_CERT_PATH" ]; then
-    print_error "P12 certificate not found at: $P12_CERT_PATH"
-    print_info "Please place your certificate file and update P12_CERT_PATH in .env.prod"
-    exit 1
+# Check P12 certificate (optional for database-driven approach)
+if [ -n "$P12_CERT_PATH" ] && [ "$P12_CERT_PATH" != "/dev/null" ]; then
+    if [ ! -f "$P12_CERT_PATH" ]; then
+        print_warning "P12 certificate not found at: $P12_CERT_PATH"
+        print_info "File-based certificate will not be available."
+        print_info "Users can still upload certificates via DocuSeal UI (database-driven approach)."
+    else
+        print_info "P12 certificate found: $P12_CERT_PATH (file-based approach available)"
+    fi
+else
+    print_info "No P12 certificate configured (using database-driven certificates only)"
 fi
 
 print_info "Configuration validated successfully!"
