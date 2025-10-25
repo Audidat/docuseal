@@ -79,12 +79,15 @@ RUN ln -s /fonts /app/public/fonts
 RUN gem install shakapacker
 
 # Copy only dependency files first (for layer caching)
-# Source code will be mounted as volumes
 COPY Gemfile Gemfile.lock ./
 RUN bundle install
 
 COPY package.json yarn.lock ./
 RUN yarn install --network-timeout 1000000
+
+# Copy the entire application source code
+# This makes the image work for both development (with volume overrides) and production
+COPY . .
 
 WORKDIR /data/docuseal
 ENV WORKDIR=/data/docuseal
