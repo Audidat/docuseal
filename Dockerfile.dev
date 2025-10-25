@@ -31,13 +31,15 @@ ENV OPENSSL_CONF=/app/openssl_legacy.cnf
 WORKDIR /app
 
 # Install all runtime and development dependencies
+# Fix package conflicts by upgrading edge packages first
 RUN echo '@edge https://dl-cdn.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories && \
+    apk upgrade --no-cache libdeflate@edge && \
     apk add --no-cache \
     # Build tools (needed for gem compilation and development)
     build-base \
     # Database clients
     sqlite-dev libpq-dev mariadb-dev \
-    # Image processing
+    # Image processing (from edge to get latest versions)
     vips-dev@edge libheif@edge vips-heif@edge \
     # Other runtime dependencies
     yaml-dev redis gcompat ttf-freefont \
