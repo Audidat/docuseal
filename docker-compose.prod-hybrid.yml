@@ -123,6 +123,7 @@ services:
     command: >
       sh -c "
         echo 'Production startup...' &&
+        cd /app &&
         rm -f tmp/pids/server.pid &&
         echo 'Installing dependencies...' &&
         bundle install --deployment --without development test &&
@@ -132,7 +133,7 @@ services:
         echo 'Running database migrations...' &&
         bundle exec rails db:migrate &&
         echo 'Starting Puma server...' &&
-        bundle exec puma -C config/puma.rb
+        bundle exec puma
       "
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
