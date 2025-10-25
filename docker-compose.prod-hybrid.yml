@@ -83,11 +83,11 @@ services:
       - RAILS_ENV=production
       - NODE_ENV=production
 
-      # Database
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-docuseal_production}
+      # Database (password must be URL-encoded in DATABASE_URL)
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD_ENCODED}@postgres:5432/${POSTGRES_DB:-docuseal_production}
 
-      # Redis
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      # Redis (password must be URL-encoded in REDIS_URL)
+      - REDIS_URL=redis://:${REDIS_PASSWORD_ENCODED}@redis:6379/0
 
       # Application secrets
       - SECRET_KEY_BASE=${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}
