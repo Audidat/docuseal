@@ -1,10 +1,9 @@
 # Docker Compose for Electronic Signature Production Stack
 #
 # This stack includes:
-# - DocuSeal (Rails app for document signing)
+# - DocuSeal (Rails app for document signing with built-in PAdES signing)
 # - PostgreSQL (database)
 # - Redis (background jobs)
-# - DSS Service Java (PAdES-LTA digital signatures)
 # - Caddy (reverse proxy with automatic HTTPS)
 #
 # Usage:
@@ -13,8 +12,6 @@
 #   3. docker compose -f docker-compose.prod.yml logs -f
 #
 # IMPORTANT: You MUST use --env-file .env.prod flag or the deployment script
-
-version: '3.8'
 
 services:
   # PostgreSQL Database
@@ -66,52 +63,17 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # DSS Service - Digital Signature Service (Java)
-  dss-service:
-    build:
-      context: ../dss_service_java
-      dockerfile: Dockerfile
-    container_name: electronic-signature-dss
-    restart: unless-stopped
-    volumes:
-      # Mount P12 certificate (read-only)
-      - ${P12_CERT_PATH:?P12_CERT_PATH is required}:/app/certificate.p12:ro
-    environment:
-      # Certificate configuration
-      - P12_PATH=certificate.p12
-      - P12_PASSWORD=${P12_PASSWORD:?P12_PASSWORD is required}
-      - TSA_URL=${TSA_URL:-http://timestamp.digicert.com}
-      # Server configuration
-      - PORT=4000
-      # Java options for production
-      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    networks:
-      - backend
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # DocuSeal Application
+  # DocuSeal Application (with built-in digital signature support)
   docuseal:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     container_name: electronic-signature-docuseal
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      dss-service:
         condition: service_healthy
     volumes:
       # Persistent storage for uploaded documents
@@ -133,9 +95,8 @@ services:
       - SECRET_KEY_BASE=${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
 
-      # Signature configuration
+      # Signature configuration (built-in DocuSeal signing)
       - SIGNATURE_TYPE=pades
-      - DSS_SERVICE_URL=http://dss-service:4000
 
       # Email configuration (optional)
       - SMTP_ADDRESS=${SMTP_ADDRESS:-}

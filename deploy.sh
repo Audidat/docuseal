@@ -10,10 +10,9 @@
 #
 # Usage:
 #   cd docuseal/
-#   ./deploy.sh           # Deploy/update all services (uses hybrid compose)
+#   ./deploy.sh           # Deploy/update all services
 #   ./deploy.sh --build   # Rebuild images before deploying
 #   ./deploy.sh --fresh   # Fresh deployment (removes volumes)
-#   ./deploy.sh --legacy  # Use original docker-compose.prod.yml (may have Rails 8 issues)
 
 set -e  # Exit on error
 
@@ -63,9 +62,8 @@ fi
 
 print_info "Using Docker Compose: $DOCKER_COMPOSE"
 
-# Determine which compose file to use
-COMPOSE_FILE="docker-compose.prod-hybrid.yml"
-USE_LEGACY=false
+# Use production compose file
+COMPOSE_FILE="docker-compose.prod.yml"
 if [ ! -f .env.prod ]; then
     print_error ".env.prod file not found!"
     print_info "Please create .env.prod from .env.prod.example and configure it:"
@@ -141,15 +139,9 @@ while [[ $# -gt 0 ]]; do
             print_warning "Fresh deployment will remove all data!"
             shift
             ;;
-        --legacy)
-            COMPOSE_FILE="docker-compose.prod.yml"
-            USE_LEGACY=true
-            print_warning "Using legacy docker-compose.prod.yml (may have Rails 8 issues)"
-            shift
-            ;;
         *)
             print_error "Unknown option: $1"
-            echo "Usage: $0 [--build] [--fresh] [--legacy]"
+            echo "Usage: $0 [--build] [--fresh]"
             exit 1
             ;;
     esac
@@ -192,13 +184,9 @@ sleep 10
 print_info "Checking service status..."
 $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod ps
 
-# Database migrations are handled in the startup command for hybrid setup
-if [ "$USE_LEGACY" = true ]; then
-    print_info "Running database migrations..."
-    $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod exec -T docuseal bundle exec rails db:migrate
-else
-    print_info "Database migrations run automatically in hybrid setup"
-fi
+# Run database migrations
+print_info "Running database migrations..."
+$DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod exec -T docuseal bundle exec rails db:migrate
 
 # Show logs
 print_info ""
@@ -208,10 +196,13 @@ print_info "=========================================="
 print_info ""
 print_info "Services running:"
 print_info "  - DocuSeal: https://${APP_HOST}"
+print_info "  - PostgreSQL database"
+print_info "  - Redis (background jobs)"
+print_info "  - Caddy (reverse proxy with automatic HTTPS)"
 print_info ""
 print_info "Digital signatures:"
-print_info "  - Built-in DocuSeal PAdES signing"
-print_info "  - Users can upload certificates via UI"
+print_info "  - Built-in PAdES signing support"
+print_info "  - Users upload certificates via UI (encrypted in database)"
 print_info ""
 print_info "Useful commands:"
 print_info "  - View logs:    $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod logs -f"
