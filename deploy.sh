@@ -87,9 +87,7 @@ REQUIRED_VARS=(
     "SECRET_KEY_BASE"
     "ENCRYPTION_KEY"
     "POSTGRES_PASSWORD"
-    "POSTGRES_PASSWORD_ENCODED"
     "REDIS_PASSWORD"
-    "REDIS_PASSWORD_ENCODED"
     # Note: P12_CERT_PATH and P12_PASSWORD are optional
     # Only needed for legacy file-based certificate approach
     # For database-driven certificates (recommended), users upload via DocuSeal UI
