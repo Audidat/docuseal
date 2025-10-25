@@ -1,88 +1,84 @@
-# Caddyfile for DocuSeal Production
-# Caddy automatically enables HTTPS with Let's Encrypt
+# Caddyfile for Electronic Signature Production
+#
+# Caddy automatically obtains and renews SSL certificates from Let's Encrypt
+# No manual SSL configuration needed!
+#
+# Features:
+# - Automatic HTTPS with Let's Encrypt
+# - HTTP/2 and HTTP/3 support
+# - Automatic HTTP to HTTPS redirect
+# - Security headers
+# - Gzip compression
+# - Access logging
 
-# Main domain configuration
-{$DOMAIN:localhost} {
-    # Reverse proxy to DocuSeal app
-    reverse_proxy app:3000 {
+# Global options
+{
+    # Email for Let's Encrypt notifications
+    email {$EMAIL}
+
+    # Use Let's Encrypt production (remove for staging)
+    # acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# Main site configuration
+{$DOMAIN} {
+    # Reverse proxy to DocuSeal
+    reverse_proxy docuseal:3000 {
         # Health check
-        health_uri /
+        health_uri /health
         health_interval 30s
         health_timeout 10s
 
-        # Load balancing (if scaling horizontally)
-        lb_policy round_robin
-
-        # Headers passed to upstream
+        # Headers
+        header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
     }
 
-    # Enable gzip/brotli compression
-    encode zstd gzip
-
     # Security headers
     header {
-        # Enable HSTS (HTTP Strict Transport Security)
+        # Enable HSTS
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 
         # Prevent clickjacking
         X-Frame-Options "SAMEORIGIN"
 
-        # Prevent MIME type sniffing
+        # Prevent MIME sniffing
         X-Content-Type-Options "nosniff"
 
-        # XSS Protection
+        # XSS protection
         X-XSS-Protection "1; mode=block"
 
-        # Referrer Policy
-        Referrer-Policy "strict-origin-when-cross-origin"
+        # Referrer policy
+        Referrer-Policy "no-referrer-when-downgrade"
 
         # Remove server header
         -Server
     }
 
-    # Rate limiting (adjust as needed)
-    rate_limit {
-        zone dynamic_zone {
-            key {remote_host}
-            events 100
-            window 1m
-        }
-    }
+    # Enable gzip compression
+    encode gzip
 
-    # Static files caching (images, CSS, JS)
-    @static {
-        path *.ico *.css *.js *.gif *.jpg *.jpeg *.png *.svg *.woff *.woff2 *.ttf *.eot
-    }
-    header @static Cache-Control "public, max-age=31536000, immutable"
-
-    # PDF files caching
-    @pdfs {
-        path *.pdf
-    }
-    header @pdfs Cache-Control "public, max-age=86400"
-
-    # Logging
+    # Access logging
     log {
-        output file /data/logs/access.log {
+        output file /data/access.log {
             roll_size 100mb
             roll_keep 5
             roll_keep_for 720h
         }
         format json
-        level INFO
     }
 
-    # Handle errors
-    handle_errors {
-        respond "{err.status_code} {err.status_text}"
+    # Max request body size (for PDF uploads)
+    request_body {
+        max_size 100MB
     }
 }
 
-# Redirect www to non-www (if DOMAIN is set and not localhost)
-www.{$DOMAIN:localhost} {
-    redir https://{$DOMAIN}{uri} permanent
-}
+# Optional: HTTP-only configuration (for development/testing)
+# Uncomment this block and comment out the block above if you don't want HTTPS
+# :80 {
+#     reverse_proxy docuseal:3000
+# }
