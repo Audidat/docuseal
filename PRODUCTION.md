@@ -86,7 +86,7 @@ DSS Service (Port 4000)
 ```bash
 cd /opt
 git clone https://github.com/yourorg/electronic_signature.git
-cd electronic_signature
+cd electronic_signature/docuseal
 ```
 
 ### Step 2: Configure Environment
@@ -98,6 +98,8 @@ cp .env.prod.example .env.prod
 # Edit configuration
 nano .env.prod
 ```
+
+**IMPORTANT**: Docker Compose will load environment variables from `.env.prod` automatically. Make sure this file exists and is properly configured before deployment.
 
 **Required configurations:**
 

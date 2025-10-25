@@ -152,17 +152,17 @@ fi
 
 # Pull latest images
 print_info "Pulling latest images..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml pull
+$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod pull
 
 # Build images if requested
 if [ -n "$BUILD_FLAG" ]; then
     print_info "Building Docker images..."
-    $DOCKER_COMPOSE -f docker-compose.prod.yml build --no-cache
+    $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod build --no-cache
 fi
 
 # Start services
 print_info "Starting services..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml up -d $BUILD_FLAG
+$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod up -d $BUILD_FLAG
 
 # Wait for services to be healthy
 print_info "Waiting for services to be healthy..."
@@ -170,11 +170,11 @@ sleep 10
 
 # Check service status
 print_info "Checking service status..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml ps
+$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod ps
 
 # Run database migrations
 print_info "Running database migrations..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml exec -T docuseal bundle exec rails db:migrate
+$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod exec -T docuseal bundle exec rails db:migrate
 
 # Show logs
 print_info ""
@@ -187,11 +187,11 @@ print_info "  - DocuSeal: https://${APP_HOST}"
 print_info "  - DSS Service: http://localhost:4000 (internal)"
 print_info ""
 print_info "Useful commands:"
-print_info "  - View logs:    $DOCKER_COMPOSE -f docker-compose.prod.yml logs -f"
-print_info "  - Stop:         $DOCKER_COMPOSE -f docker-compose.prod.yml stop"
-print_info "  - Restart:      $DOCKER_COMPOSE -f docker-compose.prod.yml restart"
-print_info "  - Status:       $DOCKER_COMPOSE -f docker-compose.prod.yml ps"
+print_info "  - View logs:    $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod logs -f"
+print_info "  - Stop:         $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod stop"
+print_info "  - Restart:      $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod restart"
+print_info "  - Status:       $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod ps"
 print_info ""
 print_info "To view real-time logs, run:"
-print_info "  $DOCKER_COMPOSE -f docker-compose.prod.yml logs -f"
+print_info "  $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod logs -f"
 print_info ""

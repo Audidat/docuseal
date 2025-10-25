@@ -5,14 +5,18 @@
 # - PostgreSQL (database)
 # - Redis (background jobs)
 # - DSS Service Java (PAdES-LTA digital signatures)
-# - Nginx (reverse proxy)
+# - Caddy (reverse proxy with automatic HTTPS)
 #
 # Usage:
 #   1. Copy .env.prod.example to .env.prod and configure
-#   2. docker compose -f docker-compose.prod.yml up -d
+#   2. docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 #   3. docker compose -f docker-compose.prod.yml logs -f
 
 version: '3.8'
+
+# Load environment from .env.prod
+env_file:
+  - .env.prod
 
 services:
   # PostgreSQL Database
@@ -23,7 +27,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Initialize with required extensions
-      - ./docuseal/docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}

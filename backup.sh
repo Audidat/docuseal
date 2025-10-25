@@ -55,7 +55,7 @@ print_info "Starting backup to: $BACKUP_DIR"
 
 # Backup PostgreSQL
 print_info "Backing up PostgreSQL database..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml exec -T postgres pg_dump \
+$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod exec -T postgres pg_dump \
     -U "${POSTGRES_USER:-postgres}" \
     -d "${POSTGRES_DB:-docuseal_production}" \
     --clean --if-exists \
