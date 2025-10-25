@@ -1,0 +1,230 @@
+# Docker Compose for Electronic Signature Production Stack (Hybrid)
+#
+# This uses the dev Dockerfile (which works) but configured for production.
+# This is a workaround for Rails 8 compatibility issues with the production Dockerfile.
+#
+# Usage:
+#   1. Copy .env.prod.example to .env.prod and configure
+#   2. docker compose -f docker-compose.prod-hybrid.yml --env-file .env.prod up -d --build
+#   3. docker compose -f docker-compose.prod-hybrid.yml logs -f
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: electronic-signature-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-docuseal_production}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis for background jobs
+  redis:
+    image: redis:7-alpine
+    container_name: electronic-signature-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # DSS Service - Digital Signature Service (Java)
+  dss-service:
+    build:
+      context: ../dss_service_java
+      dockerfile: Dockerfile
+    container_name: electronic-signature-dss
+    restart: unless-stopped
+    volumes:
+      - ${P12_CERT_PATH:?P12_CERT_PATH is required}:/app/certificate.p12:ro
+    environment:
+      - P12_PATH=certificate.p12
+      - P12_PASSWORD=${P12_PASSWORD:?P12_PASSWORD is required}
+      - TSA_URL=${TSA_URL:-http://timestamp.digicert.com}
+      - PORT=4000
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # DocuSeal Application (using dev Dockerfile for compatibility)
+  docuseal:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: electronic-signature-docuseal
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      dss-service:
+        condition: service_healthy
+    volumes:
+      # Persistent storage for uploaded documents
+      - docuseal_data:/data/docuseal
+      # Logs
+      - docuseal_logs:/app/log
+      # Bundle cache for faster restarts
+      - bundle:/usr/local/bundle
+    environment:
+      # Rails environment - PRODUCTION MODE
+      - RAILS_ENV=production
+      - NODE_ENV=production
+
+      # Database
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-docuseal_production}
+
+      # Redis
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      # Application secrets
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+
+      # Signature configuration
+      - SIGNATURE_TYPE=pades
+      - DSS_SERVICE_URL=http://dss-service:4000
+
+      # Email configuration (optional)
+      - SMTP_ADDRESS=${SMTP_ADDRESS:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_DOMAIN=${SMTP_DOMAIN:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@example.com}
+
+      # Application URL
+      - HOST=${APP_HOST:?APP_HOST is required}
+      - FORCE_SSL=${FORCE_SSL:-true}
+
+      # File storage (optional - S3, GCS, Azure)
+      - ACTIVE_STORAGE_SERVICE=${ACTIVE_STORAGE_SERVICE:-local}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_REGION=${S3_REGION:-}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
+
+      # Performance
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
+      - RAILS_MAX_THREADS=${RAILS_MAX_THREADS:-5}
+      - MALLOC_ARENA_MAX=2
+    working_dir: /app
+    command: >
+      sh -c "
+        echo 'Production startup...' &&
+        rm -f tmp/pids/server.pid &&
+        echo 'Installing dependencies...' &&
+        bundle install --deployment --without development test &&
+        yarn install --production --frozen-lockfile &&
+        echo 'Precompiling assets...' &&
+        bundle exec rails assets:precompile &&
+        echo 'Running database migrations...' &&
+        bundle exec rails db:migrate &&
+        echo 'Starting Puma server...' &&
+        bundle exec puma -C config/puma.rb
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - backend
+      - frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Caddy Reverse Proxy with Automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    container_name: electronic-signature-caddy
+    restart: unless-stopped
+    depends_on:
+      - docuseal
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${APP_HOST:?APP_HOST is required}
+      - EMAIL=${ACME_EMAIL:-admin@example.com}
+    networks:
+      - frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  docuseal_data:
+    driver: local
+  docuseal_logs:
+    driver: local
+  bundle:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge

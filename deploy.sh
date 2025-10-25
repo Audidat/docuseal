@@ -10,9 +10,10 @@
 #
 # Usage:
 #   cd docuseal/
-#   ./deploy.sh           # Deploy/update all services
+#   ./deploy.sh           # Deploy/update all services (uses hybrid compose)
 #   ./deploy.sh --build   # Rebuild images before deploying
 #   ./deploy.sh --fresh   # Fresh deployment (removes volumes)
+#   ./deploy.sh --legacy  # Use original docker-compose.prod.yml (may have Rails 8 issues)
 
 set -e  # Exit on error
 
@@ -62,7 +63,9 @@ fi
 
 print_info "Using Docker Compose: $DOCKER_COMPOSE"
 
-# Check if .env.prod exists
+# Determine which compose file to use
+COMPOSE_FILE="docker-compose.prod-hybrid.yml"
+USE_LEGACY=false
 if [ ! -f .env.prod ]; then
     print_error ".env.prod file not found!"
     print_info "Please create .env.prod from .env.prod.example and configure it:"
@@ -129,13 +132,21 @@ while [[ $# -gt 0 ]]; do
             print_warning "Fresh deployment will remove all data!"
             shift
             ;;
+        --legacy)
+            COMPOSE_FILE="docker-compose.prod.yml"
+            USE_LEGACY=true
+            print_warning "Using legacy docker-compose.prod.yml (may have Rails 8 issues)"
+            shift
+            ;;
         *)
             print_error "Unknown option: $1"
-            echo "Usage: $0 [--build] [--fresh]"
+            echo "Usage: $0 [--build] [--fresh] [--legacy]"
             exit 1
             ;;
     esac
 done
+
+print_info "Using compose file: $COMPOSE_FILE"
 
 # Fresh deployment - remove everything
 if [ "$FRESH_DEPLOY" = true ]; then
@@ -147,22 +158,22 @@ if [ "$FRESH_DEPLOY" = true ]; then
     fi
 
     print_info "Stopping and removing containers..."
-    $DOCKER_COMPOSE -f docker-compose.prod.yml down -v
+    $DOCKER_COMPOSE -f $COMPOSE_FILE down -v
 fi
 
 # Pull latest images
 print_info "Pulling latest images..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod pull
+$DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod pull
 
 # Build images if requested
 if [ -n "$BUILD_FLAG" ]; then
     print_info "Building Docker images..."
-    $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod build --no-cache
+    $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod build --no-cache
 fi
 
 # Start services
 print_info "Starting services..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod up -d $BUILD_FLAG
+$DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod up -d $BUILD_FLAG
 
 # Wait for services to be healthy
 print_info "Waiting for services to be healthy..."
@@ -170,11 +181,15 @@ sleep 10
 
 # Check service status
 print_info "Checking service status..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod ps
+$DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod ps
 
-# Run database migrations
-print_info "Running database migrations..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod exec -T docuseal bundle exec rails db:migrate
+# Database migrations are handled in the startup command for hybrid setup
+if [ "$USE_LEGACY" = true ]; then
+    print_info "Running database migrations..."
+    $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod exec -T docuseal bundle exec rails db:migrate
+else
+    print_info "Database migrations run automatically in hybrid setup"
+fi
 
 # Show logs
 print_info ""
@@ -187,11 +202,11 @@ print_info "  - DocuSeal: https://${APP_HOST}"
 print_info "  - DSS Service: http://localhost:4000 (internal)"
 print_info ""
 print_info "Useful commands:"
-print_info "  - View logs:    $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod logs -f"
-print_info "  - Stop:         $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod stop"
-print_info "  - Restart:      $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod restart"
-print_info "  - Status:       $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod ps"
+print_info "  - View logs:    $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod logs -f"
+print_info "  - Stop:         $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod stop"
+print_info "  - Restart:      $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod restart"
+print_info "  - Status:       $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod ps"
 print_info ""
 print_info "To view real-time logs, run:"
-print_info "  $DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod logs -f"
+print_info "  $DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod logs -f"
 print_info ""

@@ -53,9 +53,19 @@ mkdir -p "$BACKUP_DIR"
 
 print_info "Starting backup to: $BACKUP_DIR"
 
+# Determine which compose file exists
+if [ -f "docker-compose.prod-hybrid.yml" ]; then
+    COMPOSE_FILE="docker-compose.prod-hybrid.yml"
+elif [ -f "docker-compose.prod.yml" ]; then
+    COMPOSE_FILE="docker-compose.prod.yml"
+else
+    print_error "No production compose file found!"
+    exit 1
+fi
+
 # Backup PostgreSQL
 print_info "Backing up PostgreSQL database..."
-$DOCKER_COMPOSE -f docker-compose.prod.yml --env-file .env.prod exec -T postgres pg_dump \
+$DOCKER_COMPOSE -f $COMPOSE_FILE --env-file .env.prod exec -T postgres pg_dump \
     -U "${POSTGRES_USER:-postgres}" \
     -d "${POSTGRES_DB:-docuseal_production}" \
     --clean --if-exists \
