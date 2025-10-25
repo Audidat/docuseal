@@ -80,6 +80,8 @@ services:
     image: postgres:15-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Mount initialization script to create extensions
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
