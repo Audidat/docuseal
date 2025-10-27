@@ -108,6 +108,7 @@ services:
 
       # Application URL
       - HOST=${APP_HOST:?APP_HOST is required}
+      - APP_URL=https://${APP_HOST}
       - FORCE_SSL=${FORCE_SSL:-true}
 
       # File storage (optional - S3, GCS, Azure)
